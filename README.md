@@ -218,9 +218,134 @@ Built as a learning project to understand:
 
 ---
 
-## ⭐ Final Note
+## 🚧 Roadmap / What’s Remaining
 
-This is not just a CRUD backend —
-it’s a **foundation for an AI-powered recommendation system**.
+This project is currently in the **backend + AI foundation stage**.
+The following features are planned to evolve it into a full production-ready system:
+
+---
+
+### 🎨 Frontend (React-based UI)
+
+* Build a modern **React + TypeScript frontend**
+* Features:
+
+  * 🔍 Search bar for natural language queries
+  * 🍽️ Interactive food cards (price, protein, calories, rating)
+  * 🎯 Filters (veg, price range, protein)
+  * 📱 Responsive UI (mobile-friendly)
+* Optional:
+
+  * Real-time suggestions (autocomplete)
+  * Dark mode
+
+---
+
+### 🤖 Real AI Integration
+
+* Replace fake embeddings with real embeddings (OpenAI)
+* Improve semantic understanding of:
+
+  * vague queries (“light but filling”)
+  * preferences (“gym diet”, “bulking food”)
+* Move toward **RAG-based system**
+
+---
+
+### 📊 Vector Search Upgrade
+
+* Replace JSON embeddings with:
+
+  * PostgreSQL + pgvector **OR**
+  * External vector DB (Pinecone / Weaviate)
+* Enable fast and scalable similarity search
+
+---
+
+### 🍽️ Data Ingestion (Zomato / Swiggy MCP)
+
+* Build pipelines to ingest real-world data:
+
+  * restaurant menus
+  * ratings
+  * pricing
+* Possible approaches:
+
+  * public APIs (if available)
+  * scraping pipelines (with caution)
+  * MCP-style ingestion system
+* Normalize and clean data for consistency
+
+---
+
+### 👤 Personalization
+
+* User-specific recommendations:
+
+  * dietary preferences
+  * fitness goals (cutting / bulking)
+  * past interactions
+* Store user behavior → improve ranking
+
+---
+
+### ⚖️ Advanced Ranking System
+
+* Improve scoring with:
+
+  * calories vs protein balance
+  * price efficiency (₹ per gram protein)
+  * popularity signals
+* Dynamic weighting instead of fixed formula
+
+---
+
+### 📍 Location Awareness
+
+* Geo-based filtering:
+
+  * nearby restaurants
+  * delivery radius
+* Integration with maps APIs
+
+---
+
+### 🚀 Deployment & Scaling
+
+* Deploy backend (AWS / Render / Railway)
+* Deploy frontend (Vercel)
+* Add:
+
+  * Docker support
+  * CI/CD pipeline
+  * environment configs
+
+---
+
+### 🔐 Production Readiness
+
+* Input validation (Zod / Joi)
+* Rate limiting
+* Logging & monitoring
+* Error tracking
+
+---
+
+## 🎯 Long-Term Vision
+
+Transform this into a system similar to:
+
+```id="vision"
+Zomato / Swiggy + AI assistant
+```
+
+Where users can:
+
+* ask in natural language
+* get personalized, intelligent food recommendations
+* discover meals based on goals, not just menus
+
+---
+
 
 ---
