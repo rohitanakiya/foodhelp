@@ -1,27 +1,26 @@
 /**
- * Generate embeddings for menu items.
+ * Generate embeddings for menu items using whichever provider is
+ * configured (local Transformers.js by default; OpenAI if
+ * EMBEDDINGS_PROVIDER=openai).
  *
- * Reads menu_items where embedding IS NULL, batches them through
- * OpenAI's text-embedding-3-small model, and stores the resulting
- * 1536-dim vector as JSONB in the embedding column.
- *
- * Re-running is safe: only items missing an embedding are processed.
+ * Reads menu_items where embedding IS NULL, batches them, and stores
+ * the vector as JSONB. Re-running is safe — only items missing an
+ * embedding are processed.
  *
  * Usage:  npm run embeddings:generate
+ *
+ * If you switch providers, null out the column first because vector
+ * dimensions differ (local: 384, openai: 1536):
+ *   UPDATE menu_items SET embedding = NULL;
  */
 
 import dotenv from "dotenv";
 dotenv.config();
 
-import OpenAI from "openai";
 import pool from "../src/core/db";
+import { getEmbeddingsProvider } from "../src/core/embeddings";
 
-const EMBEDDING_MODEL = "text-embedding-3-small";
-const BATCH_SIZE = 50;
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const BATCH_SIZE = 16;
 
 type MenuRow = {
   id: string;
@@ -30,23 +29,12 @@ type MenuRow = {
 };
 
 function buildEmbeddingText(row: MenuRow): string {
-  // Combine fields so the embedding captures both the dish name
-  // and the descriptive text the menu uses.
   return [row.name, row.description ?? ""].filter(Boolean).join(". ");
 }
 
-async function embedBatch(texts: string[]): Promise<number[][]> {
-  const response = await openai.embeddings.create({
-    model: EMBEDDING_MODEL,
-    input: texts,
-  });
-  return response.data.map((d) => d.embedding);
-}
-
 async function generateEmbeddings() {
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error("OPENAI_API_KEY is not set in .env");
-  }
+  const provider = getEmbeddingsProvider();
+  console.log(`Using embeddings provider: ${provider.name} (dim=${provider.dimension})`);
 
   const result = await pool.query<MenuRow>(`
     SELECT id, name, description
@@ -68,13 +56,12 @@ async function generateEmbeddings() {
 
     let embeddings: number[][];
     try {
-      embeddings = await embedBatch(texts);
+      embeddings = await provider.embedMany(texts);
     } catch (err) {
       console.error(`Batch starting at ${i} failed:`, err);
       throw err;
     }
 
-    // One transaction per batch.
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -92,9 +79,7 @@ async function generateEmbeddings() {
       client.release();
     }
 
-    console.log(
-      `  Embedded ${Math.min(i + BATCH_SIZE, rows.length)}/${rows.length}`
-    );
+    console.log(`  Embedded ${Math.min(i + BATCH_SIZE, rows.length)}/${rows.length}`);
   }
 
   console.log("Done generating embeddings.");

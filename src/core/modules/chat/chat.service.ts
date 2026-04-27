@@ -1,21 +1,5 @@
-import OpenAI from "openai";
+import { getEmbeddingsProvider } from "../../embeddings";
 import { getMenuItems } from "../menu/menu.service";
-
-const EMBEDDING_MODEL = "text-embedding-3-small";
-
-// Lazy-init the OpenAI client. We don't construct it at module load time
-// so that the rest of the app (including tests) can run even if the
-// OPENAI_API_KEY isn't configured.
-let openaiClient: OpenAI | null = null;
-function getOpenAIClient(): OpenAI {
-  if (!openaiClient) {
-    if (!process.env.OPENAI_API_KEY) {
-      throw new Error("OPENAI_API_KEY is not set");
-    }
-    openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  }
-  return openaiClient;
-}
 
 type ExtractedFilters = {
   city?: string;
@@ -134,18 +118,9 @@ export function extractFiltersFromText(input: string): ExtractedFilters {
 
 // ---------- Embedding helpers ----------
 
-async function embedQuery(text: string): Promise<number[]> {
-  const client = getOpenAIClient();
-  const response = await client.embeddings.create({
-    model: EMBEDDING_MODEL,
-    input: text,
-  });
-  return response.data[0].embedding;
-}
-
 /**
  * pg returns JSONB columns already parsed (number[]), but some driver
- * configurations or migrations could leave it as a string. Handle both.
+ * configurations could leave it as a string. Handle both.
  */
 function coerceEmbedding(raw: unknown): number[] | null {
   if (Array.isArray(raw)) {
@@ -216,37 +191,33 @@ export async function getRecommendationsFromText(input: string) {
     offset: 0,
   });
 
-  // If no OpenAI key is configured, gracefully degrade: return
-  // filter-matched items ranked by rating, no semantic scoring.
-  if (!process.env.OPENAI_API_KEY) {
-    return {
-      filters,
-      recommendations: items.slice(0, 10).map((item) => ({
-        ...item,
-        embedding: undefined,
-        similarity: null,
-        score: hybridScore(0, item.protein, item.rating),
-      })),
-      note:
-        "Semantic ranking disabled - OPENAI_API_KEY is not configured. Results are filter-only.",
-    };
-  }
+  let queryEmbedding: number[] | null = null;
+  let providerName = "none";
 
-  const queryEmbedding = await embedQuery(input);
+  try {
+    const provider = getEmbeddingsProvider();
+    providerName = provider.name;
+    queryEmbedding = await provider.embed(input);
+  } catch (err) {
+    // If the provider can't initialise (e.g. OpenAI selected with no
+    // API key), fall back to filter-only ranking instead of erroring.
+    console.warn("Embeddings provider unavailable, falling back:", (err as Error).message);
+  }
 
   const scored = items.map((item) => {
     const itemEmbedding = coerceEmbedding(item.embedding);
 
-    const similarity = itemEmbedding
-      ? cosineSimilarity(queryEmbedding, itemEmbedding)
-      : 0;
+    const similarity =
+      queryEmbedding && itemEmbedding
+        ? cosineSimilarity(queryEmbedding, itemEmbedding)
+        : 0;
 
     const score = hybridScore(similarity, item.protein, item.rating);
 
     return {
       ...item,
       embedding: undefined, // strip raw vector from API response
-      similarity,
+      similarity: queryEmbedding && itemEmbedding ? similarity : null,
       score,
     };
   });
@@ -254,6 +225,7 @@ export async function getRecommendationsFromText(input: string) {
   const ranked = scored.sort((a, b) => b.score - a.score);
 
   return {
+    provider: providerName,
     filters,
     recommendations: ranked.slice(0, 10),
   };

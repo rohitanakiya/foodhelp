@@ -46,10 +46,10 @@ async function runMigration(filename: string) {
       [filename]
     );
     await client.query("COMMIT");
-    console.log(`  ✓ ${filename}`);
+    console.log(`  OK ${filename}`);
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error(`  ✗ ${filename} failed:`, err);
+    console.error(`  FAIL ${filename}:`, err);
     throw err;
   } finally {
     client.release();

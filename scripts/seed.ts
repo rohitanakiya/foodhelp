@@ -2,7 +2,8 @@
  * Seed sample restaurants and menu items for development.
  *
  * Idempotent: relies on UNIQUE(name, city) for restaurants and
- * UNIQUE(restaurant_id, name) for menu_items, with ON CONFLICT DO NOTHING.
+ * UNIQUE(restaurant_id, name) for menu_items, with ON CONFLICT
+ * DO UPDATE so re-runs refresh data instead of erroring.
  *
  * Usage:  npm run db:seed
  *
@@ -228,7 +229,7 @@ async function seed() {
           ]
         );
       }
-      console.log(`  ✓ ${r.name} (${r.city}) — ${r.items.length} items`);
+      console.log(`  OK ${r.name} (${r.city}) - ${r.items.length} items`);
     }
 
     await client.query("COMMIT");
