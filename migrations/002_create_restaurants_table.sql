@@ -1,4 +1,4 @@
-CREATE TABLE restaurants (
+CREATE TABLE IF NOT EXISTS restaurants (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
 
     name TEXT NOT NULL CHECK (char_length(trim(name)) > 0),

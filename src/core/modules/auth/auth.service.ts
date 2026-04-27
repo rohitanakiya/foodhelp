@@ -44,12 +44,17 @@ export async function authenticateUser(email: string, password: string) {
     throw new Error("USER_INACTIVE");
   }
 
+  const jwtSecret = process.env.JWT_SECRET;
+  if (!jwtSecret) {
+    throw new Error("JWT_SECRET is not configured");
+  }
+
   const token = jwt.sign(
     {
       sub: user.id,
       email: user.email,
     },
-    process.env.JWT_SECRET || "dev-secret",
+    jwtSecret,
     { expiresIn: "7d" }
   );
 

@@ -1,4 +1,4 @@
-CREATE TABLE menu_items (
+CREATE TABLE IF NOT EXISTS menu_items (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
 
     restaurant_id UUID NOT NULL 
