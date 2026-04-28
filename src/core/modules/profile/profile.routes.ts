@@ -1,9 +1,12 @@
 import { Router } from "express";
-import authMiddleware from "../../../middleware/auth.middleware";
+import {authMiddleware} from "../../../middleware/auth.middleware";
 import { getProfile } from "./profile.controller";
 
 const router = Router();
 
-router.get("/", authMiddleware, getProfile);
+// apply auth middleware to all routes
+router.use(authMiddleware);
+
+router.get("/me", getProfile);
 
 export default router;

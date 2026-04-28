@@ -1,52 +1,54 @@
 import { Request, Response } from "express";
+import {
+  ConflictError,
+  ForbiddenError,
+  UnauthorizedError,
+} from "../../errors";
 import { authenticateUser, createUser } from "./auth.service";
+import type { LoginInput, SignupInput } from "./auth.schemas";
 
-export async function signup(req: Request, res: Response) {
+export async function signup(
+  req: Request<unknown, unknown, SignupInput>,
+  res: Response
+) {
+  const { email, password, username } = req.body;
+
   try {
-    const { email, password, username } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ error: "Email and password required" });
-    }
-
     const user = await createUser(email, password, username);
-
-    return res.status(201).json({
-      message: "User created",
-      user,
-    });
-  } catch (error: any) {
-    if (error.code === "23505") {
-      return res.status(409).json({ error: "Email or username already exists" });
+    res.status(201).json({ message: "User created", user });
+  } catch (error: unknown) {
+    // Postgres unique_violation
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      (error as { code: string }).code === "23505"
+    ) {
+      throw new ConflictError("Email or username already exists");
     }
-
-    return res.status(500).json({ error: "Internal server error" });
+    throw error;
   }
 }
 
-export async function login(req: Request, res: Response) {
+export async function login(
+  req: Request<unknown, unknown, LoginInput>,
+  res: Response
+) {
+  const { email, password } = req.body;
+
+  let authResult;
   try {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ error: "Email and password required" });
+    authResult = await authenticateUser(email, password);
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message === "USER_INACTIVE") {
+      throw new ForbiddenError("User account is inactive");
     }
-
-    const authResult = await authenticateUser(email, password);
-
-    if (!authResult) {
-      return res.status(401).json({ error: "Invalid email or password" });
-    }
-
-    return res.status(200).json({
-      message: "Login successful",
-      ...authResult,
-    });
-  } catch (error: any) {
-    if (error.message === "USER_INACTIVE") {
-      return res.status(403).json({ error: "User account is inactive" });
-    }
-
-    return res.status(500).json({ error: "Internal server error" });
+    throw error;
   }
+
+  if (!authResult) {
+    throw new UnauthorizedError("Invalid email or password");
+  }
+
+  res.status(200).json({ message: "Login successful", ...authResult });
 }
