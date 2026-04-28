@@ -13,9 +13,9 @@ export async function signup(
 ) {
   const { email, password, username } = req.body;
 
+  let result;
   try {
-    const user = await createUser(email, password, username);
-    res.status(201).json({ message: "User created", user });
+    result = await createUser(email, password, username);
   } catch (error: unknown) {
     // Postgres unique_violation
     if (
@@ -28,6 +28,11 @@ export async function signup(
     }
     throw error;
   }
+
+  res.status(201).json({
+    message: "User created",
+    ...result,
+  });
 }
 
 export async function login(

@@ -210,6 +210,100 @@ http://localhost:4000
 
 ---
 
+## 🚪 Running behind the api-rate-limiter gateway
+
+This backend can run standalone (open on `0.0.0.0:4000`) or behind a sibling project, [api-rate-limiter](https://github.com/rohitanakiya/api-rate-limiter), as an authenticating, rate-limiting API gateway. The integration is the same architecture Stripe, Cloudflare, and AWS API Gateway use: a single public surface checks who you are and how fast you're going before traffic ever reaches the application server.
+
+### Architecture
+
+```
+Browser / curl
+      │
+      ▼  (port 8000, public)
+┌──────────────────────────┐
+│ api-rate-limiter         │  Python · FastAPI · Redis
+│  • X-API-Key auth (HMAC) │
+│  • Token bucket          │
+│  • Sliding window        │
+│  • /gw/* → proxies to    │
+│    UPSTREAM_URL          │
+└──────────┬───────────────┘
+           │ adds X-Authenticated-Key-Id,
+           │ X-Authenticated-Scopes, etc.
+           ▼  (port 4000, 127.0.0.1 only in gateway mode)
+┌──────────────────────────┐
+│ ai-food-backend          │  Node · Express · Postgres
+│  • gatewayAuth middleware│
+│  • JWT auth for /profile │
+│  • semantic recommender  │
+└──────────────────────────┘
+```
+
+The food backend keeps its existing JWT for user identity (`/auth/login`, `/profile`). The gateway answers a different question: "may you call this API at all?" — layered auth, not replaced.
+
+### Configuration
+
+Add to your `.env`:
+
+```env
+GATEWAY_MODE=true
+CORS_ORIGINS=http://localhost:8000,http://localhost:3000,http://localhost:5173
+```
+
+When `GATEWAY_MODE=true`:
+- The server binds to `127.0.0.1:4000` instead of `0.0.0.0`, so only the local gateway can reach it.
+- The `gatewayAuthMiddleware` reads `X-Authenticated-Key-Id`, `X-Authenticated-Scopes`, etc. from the gateway and exposes them on `req.gateway` for downstream handlers.
+
+In the rate-limiter's `.env`:
+
+```env
+UPSTREAM_URL=http://127.0.0.1:4000
+```
+
+### Running both services together
+
+You'll need **three terminals** (or two if you skip Redis and use the rate-limiter's in-memory fallback):
+
+```powershell
+# Terminal 1 — Redis (optional; rate-limiter falls back to in-memory if unavailable)
+cd C:\Users\rohit\OneDrive\Desktop\api-rate-limiter
+docker compose up
+
+# Terminal 2 — Rate limiter / gateway
+cd C:\Users\rohit\OneDrive\Desktop\api-rate-limiter
+.\venv\Scripts\activate
+uvicorn app.main:app --reload
+
+# Terminal 3 — Food backend
+cd C:\Users\rohit\OneDrive\Desktop\ai-food-backend
+npm run dev
+```
+
+### Smoke test (PowerShell)
+
+```powershell
+# Create an API key via the gateway's admin endpoint
+$adminKey = "super-secret-admin-key-change-in-production"  # from rate-limiter .env
+$response = Invoke-RestMethod -Uri http://localhost:8000/admin/keys `
+  -Method Post `
+  -Headers @{"X-Admin-Key"=$adminKey} `
+  -ContentType "application/json" `
+  -Body '{"name":"smoke","scopes":["read","write"],"tier":"free"}'
+$apiKey = $response.raw_key
+
+# Call /chat/recommend through the gateway
+Invoke-RestMethod -Uri http://localhost:8000/gw/chat/recommend `
+  -Method Post `
+  -Headers @{"X-API-Key"=$apiKey} `
+  -ContentType "application/json" `
+  -Body '{"text":"high protein veg food in bangalore"}' |
+  ConvertTo-Json -Depth 10
+```
+
+The rate-limiter applies its tier limits (free = 20 req/min, sliding window + token bucket) before the request ever reaches the food backend. Past the limit you'll see `429 rate_limit_exceeded` with `Retry-After`.
+
+---
+
 ## 👨‍💻 Author
 
 Built as a learning project to understand:
