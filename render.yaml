@@ -1,0 +1,39 @@
+# Render blueprint — describes the Web Service + Postgres for ai-food-backend.
+#
+# To deploy: connect this repo to Render, create a "Blueprint" instead of
+# a "Web Service", and Render reads this file. Or skip it and click the
+# dashboard manually — both work, but the blueprint is reproducible.
+#
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: ai-food-backend
+    runtime: node
+    plan: free
+    region: oregon
+    branch: main
+    buildCommand: npm install && npm run build
+    startCommand: node dist/server.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ai-food-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true # Render generates a random value once
+      - key: EMBEDDINGS_PROVIDER
+        value: local
+      # Override after first deploy with the actual frontend Vercel URL,
+      # comma-separated if you have multiple. Wildcards aren't supported.
+      - key: CORS_ORIGINS
+        value: http://localhost:5173,http://localhost:3000
+
+databases:
+  - name: ai-food-db
+    plan: free
+    region: oregon
+    postgresMajorVersion: "16"
