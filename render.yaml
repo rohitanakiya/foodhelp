@@ -1,10 +1,4 @@
 # Render blueprint — describes the Web Service + Postgres for ai-food-backend.
-#
-# To deploy: connect this repo to Render, create a "Blueprint" instead of
-# a "Web Service", and Render reads this file. Or skip it and click the
-# dashboard manually — both work, but the blueprint is reproducible.
-#
-# Docs: https://render.com/docs/blueprint-spec
 
 services:
   - type: web
@@ -13,7 +7,13 @@ services:
     plan: free
     region: oregon
     branch: main
-    buildCommand: npm install && npm run build
+    # --omit=optional skips @xenova/transformers and its 80MB+
+    # onnxruntime native binary, which doesn't fit comfortably in the
+    # free tier's 512MB build RAM. The chat service falls back to
+    # filter-only ranking when the local provider isn't available.
+    # For full semantic search, run on a paid plan or set
+    # EMBEDDINGS_PROVIDER=openai.
+    buildCommand: npm install --omit=optional && npm run build
     startCommand: node dist/server.js
     healthCheckPath: /health
     envVars:
@@ -24,11 +24,9 @@ services:
           name: ai-food-db
           property: connectionString
       - key: JWT_SECRET
-        generateValue: true # Render generates a random value once
+        generateValue: true
       - key: EMBEDDINGS_PROVIDER
         value: local
-      # Override after first deploy with the actual frontend Vercel URL,
-      # comma-separated if you have multiple. Wildcards aren't supported.
       - key: CORS_ORIGINS
         value: http://localhost:5173,http://localhost:3000
 
